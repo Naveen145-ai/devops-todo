@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: <DOCKERHUB_USERNAME>/todo-frontend:latest
+        image: naveen656/todo-frontend:latest
+
         ports:
         - containerPort: 3000
         env:

@@ -1,10 +1,11 @@
 pipeline {
   agent any
   environment {
-    DOCKERHUB = "docker.io"
-    DOCKERHUB_REPO_FRONT = "<DOCKERHUB_USERNAME>/todo-frontend"
-    DOCKERHUB_REPO_BACK = "<DOCKERHUB_USERNAME>/todo-backend"
-  }
+  DOCKERHUB = "docker.io"
+  DOCKERHUB_REPO_FRONT = "naveen656/todo-frontend"
+  DOCKERHUB_REPO_BACK  = "naveen656/todo-backend"
+}
+
 
   stages {
     stage('Checkout') {

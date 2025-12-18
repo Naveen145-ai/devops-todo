@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: <DOCKERHUB_USERNAME>/todo-backend:latest
+        image: naveen656/todo-backend:latest
         ports:
         - containerPort: 5000
         env:
