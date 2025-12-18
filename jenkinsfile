@@ -1,0 +1,89 @@
+pipeline {
+  agent any
+  environment {
+    DOCKERHUB = "docker.io"
+    DOCKERHUB_REPO_FRONT = "<DOCKERHUB_USERNAME>/todo-frontend"
+    DOCKERHUB_REPO_BACK = "<DOCKERHUB_USERNAME>/todo-backend"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Build Backend Image') {
+      steps {
+        dir('backend') {
+          script {
+            backendImage = docker.build("${DOCKERHUB_REPO_BACK}:${BUILD_NUMBER}")
+          }
+        }
+      }
+    }
+
+    stage('Build Frontend Image') {
+      steps {
+        dir('frontend') {
+          script {
+            frontendImage = docker.build("${DOCKERHUB_REPO_FRONT}:${BUILD_NUMBER}")
+          }
+        }
+      }
+    }
+
+    stage('Push Images to Docker Hub') {
+      steps {
+        script {
+          docker.withRegistry("https://${DOCKERHUB}", 'dockerhub-credentials') {
+            backendImage.push()
+            backendImage.push("latest")
+            frontendImage.push()
+            frontendImage.push("latest")
+          }
+        }
+      }
+    }
+
+    stage('Terraform Apply') {
+      steps {
+        dir('terraform') {
+          sh 'terraform init -input=false'
+          // assume AWS creds are available in environment
+          sh 'terraform apply -auto-approve'
+        }
+      }
+    }
+
+    stage('Update kubeconfig') {
+      steps {
+        // replace "my-cluster" with terraform output or name you used
+        sh '''
+          aws eks update-kubeconfig --name $(terraform output -raw cluster_name || echo "mern-cluster") --region ${AWS_REGION:-ap-south-1}
+        '''
+      }
+    }
+
+    stage('Deploy to Kubernetes') {
+      steps {
+        // create secret (you need to set MONGO_URL as Jenkins secret text or env)
+        sh '''
+          kubectl create secret generic mongo-secret --from-literal=MONGO_URL="${MONGO_URL}" --dry-run=client -o yaml | kubectl apply -f -
+          # substitute the image tags to latest
+          sed -e "s|<DOCKERHUB_USERNAME>/todo-backend:latest|${DOCKERHUB_REPO_BACK}:latest|" k8s/backend-deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/backend-service.yaml
+          sed -e "s|<DOCKERHUB_USERNAME>/todo-frontend:latest|${DOCKERHUB_REPO_FRONT}:latest|" k8s/frontend-deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/frontend-service.yaml
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Deploy complete"
+    }
+    failure {
+      echo "Pipeline failed"
+    }
+  }
+}
